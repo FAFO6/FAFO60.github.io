@@ -1,8 +1,908 @@
 <!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"></head>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Immortal Taoism</title>
+    <style>
+        :root {
+            --paper: #e6dfcc;
+            --ink: #1a1a1a;
+            --gold: #b5945a;
+            --cyan: #8fb8b3; 
+            --skin: #fef1e6;
+            --vermilion: #a62c2b;
+            --shadow: rgba(0,0,0,0.08);
+            --bamboo-green: #6c8d71;
+            --cloud-blue: #c2d8e0;
+            --purple: #6a1b9a;
+        }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: "KaiTi", serif; }
+        #wrap { position: relative; width: 100%; height: 100%; background: var(--paper); display: flex; }
+        #stage { position: relative; flex: 1; }
+        canvas { display: block; filter: contrast(1.1) brightness(0.95); width: 100%; height: 100%; }
+        
+        /* UI Scroll */
+        #ui { 
+            width: 420px; height: 100%; background: #fdfaf0; 
+            border-left: 14px solid #4e342e; padding: 40px 25px; 
+            box-sizing: border-box; box-shadow: -10px 0 30px rgba(0,0,0,0.3);
+            background-image: url('https://www.transparenttextures.com/patterns/paper-fibers.png');
+            overflow-y: auto;
+        }
+        .ui-card { border: 1px solid #dcd7c0; padding: 15px; background: rgba(255,255,255,0.4); margin-bottom: 20px; }
+        .log-box { height: 280px; overflow-y: auto; font-size: 0.9rem; color: #555; border-top: 1px solid #ddd; padding-top: 10px; }
+        button { background: var(--cyan); color: white; border: none; padding: 8px 16px; cursor: pointer; margin: 5px 0; width: 100%; border-radius: 4px; font-size: 1rem; }
+        button:hover:not(:disabled) { background: var(--bamboo-green); }
+        button:disabled { background: #ccc; cursor: not-allowed; opacity: 0.6; }
+        .progress-bar { width: 100%; height: 8px; background: #eee; border-radius: 4px; overflow: hidden; margin-top: 5px; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--gold)); transition: width 0.3s; }
+        .shop-item { display: flex; justify-content: space-between; align-items: center; margin: 10px 0; padding: 10px; background: rgba(255,255,255,0.2); border-radius: 4px; }
+        .shop-btn { width: auto; padding: 4px 12px; font-size: 0.9rem; }
+        .disciple-item { margin: 10px 0; padding: 10px; background: rgba(255,255,255,0.2); border-radius: 4px; }
+        .disciple-status { font-size: 0.8rem; color: #666; }
+
+        /* Responsive Design - Mobile Adaptation */
+        @media (max-width: 768px) {
+            #wrap { flex-direction: column; height: 100vh; }
+            #stage { height: 60%; width: 100%; }
+            #ui { width: 100%; height: 40%; padding: 20px 15px; border-left: none; border-top: 14px solid #4e342e; box-shadow: 0 -10px 30px rgba(0,0,0,0.3); }
+            .log-box { height: 140px; font-size: 0.8rem; }
+            button { font-size: 0.9rem; padding: 6px 12px; }
+            h2 { font-size: 1.2rem; letter-spacing: 4px; }
+            h3 { font-size: 1rem; }
+            .ui-card { padding: 10px; margin-bottom: 15px; }
+            .shop-item, .disciple-item { flex-direction: column; align-items: flex-start; }
+            .shop-btn { width: 100%; margin-top: 5px; }
+        }
+
+        @media (max-width: 480px) {
+            #stage { height: 55%; }
+            #ui { height: 45%; padding: 15px 10px; }
+            .log-box { height: 120px; }
+        }
+    </style>
+    <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
+    <script src="https://cdn.ethers.io/lib/ethers-5.7.umd.min.js"></script>
+    <script src="https://unpkg.com/@walletconnect/ethereum-provider@2.10.0/dist/umd/index.min.js"></script>
+</head>
 <body>
-    <h1>我的网站成功上线啦！</h1>
-    <p>这是我的第一个 GitHub Pages 页面。</p>
+<div id="wrap">
+    <div id="stage"><canvas id="mainCanvas"></canvas></div>
+    <div id="ui">
+        <div style="text-align:center; border-bottom: 2px solid var(--ink); padding-bottom:15px; margin-bottom:20px;">
+            <h2 style="margin:0; letter-spacing:8px;">Immortal Taoism</h2>
+            <div style="font-size:0.8rem; color:#888;" id="realm">Realm: Golden Core Peak</div>
+            <div style="font-size:0.7rem; color:#aaa;" id="offline">Offline Rewards Claimed</div>
+        </div>
+        <div class="ui-card">
+            <div style="display:flex; justify-content:space-between">
+                <span>Spirit Stones Balance</span><span id="money" style="color:var(--vermilion); font-weight:bold;">15000</span>
+            </div>
+        </div>
+        <div class="ui-card">
+            <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                <span>Cultivation</span><span id="cult" style="color:var(--gold); font-weight:bold;">0</span>
+            </div>
+            <div style="font-size:0.8rem; color:#666; margin-bottom:10px;">Required for Breakthrough: <span id="req" style="color:var(--vermilion);">20000</span></div>
+            <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+        </div>
+        <div class="ui-card">
+            <h3 style="margin: 0 0 10px; text-align: center;">Cultivation Options</h3>
+            <button onclick="cultivate()">Closed Door Cultivation (Spirit Stones + random, Cultivation + random)</button>
+            <button onclick="explore()">Explore Outside (Random Events)</button>
+            <button id="breakthroughBtn" onclick="breakthrough()" disabled>Breakthrough Realm (Requires 20000 Cultivation)</button>
+        </div>
+        <div class="ui-card">
+            <h3 style="margin: 0 0 10px; text-align: center;">Pill Shop</h3>
+            <div class="shop-item">
+                <span>Spirit Gathering Pill (1000 Spirit Stones = 500 Cultivation)</span>
+                <button class="shop-btn" onclick="buyPill(0)" id="pillBtn0" disabled>Buy</button>
+            </div>
+            <div class="shop-item">
+                <span>Foundation Building Pill (5000 Spirit Stones = 3000 Cultivation)</span>
+                <button class="shop-btn" onclick="buyPill(1)" id="pillBtn1" disabled>Buy</button>
+            </div>
+            <div class="shop-item">
+                <span>Purple Gold Pill (20000 Spirit Stones = 15000 Cultivation)</span>
+                <button class="shop-btn" onclick="buyPill(2)" id="pillBtn2" disabled>Buy</button>
+            </div>
+            <div class="shop-item">
+                <span>Immortal Spirit Fruit (3000 Spirit Stones = 1000 Cultivation + Random Buff)</span>
+                <button class="shop-btn" onclick="buyPill(3)" id="pillBtn3" disabled>Buy</button>
+            </div>
+        </div>
+        <div class="ui-card">
+            <h3 style="margin: 0 0 10px; text-align: center;">Immortal Alliance</h3>
+            <button onclick="joinAlliance()" disabled id="allianceBtn">Join Alliance (5000 Spirit Stones)</button>
+            <div style="font-size:0.8rem; color:#666; margin-top:10px;" id="allianceStatus">Not Joined Alliance</div>
+        </div>
+        <div class="ui-card">
+            <h3 style="margin: 0 0 10px; text-align: center;">Disciple System</h3>
+            <button onclick="recruitDisciple()" disabled id="recruitBtn">Recruit Disciple (2000 Spirit Stones)</button>
+            <div id="disciples" style="margin-top:10px;"></div>
+        </div>
+        <div class="ui-card" id="cryptoShop" style="display:block;">
+            <h3 style="margin: 0 0 10px; text-align: center;">Crypto Shop (USDC)</h3>
+            <button onclick="connectWithMetaMask()" id="metamaskBtn" style="background:var(--gold);">Connect with MetaMask</button>
+            <button onclick="connectWithWalletConnect()" id="walletconnectBtn" style="background:var(--gold); margin-top: 5px;">Connect with WalletConnect</button>
+            <div id="walletInfo" style="font-size:0.8rem; color:#666; margin-top:10px;"></div>
+            <div class="shop-item">
+                <span>Small Pack: 10k Stones</span>
+                <button class="shop-btn" onclick="buyPack(0, 1)" disabled id="pack0">Buy (1 USDC)</button>
+            </div>
+            <div class="shop-item">
+                <span>Medium Pack: 50k Stones</span>
+                <button class="shop-btn" onclick="buyPack(1, 4)" disabled id="pack1">Buy (4 USDC)</button>
+            </div>
+            <div class="shop-item">
+                <span>Large Pack: 200k Stones + Bonus</span>
+                <button class="shop-btn" onclick="buyPack(2, 15)" disabled id="pack2">Buy (15 USDC)</button>
+            </div>
+            <div style="font-size:0.7rem; color:#aaa;">Payments in native USDC to your wallet.</div>
+        </div>
+        <div class="log-box" id="logs"></div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('mainCanvas');
+    const ctx = canvas.getContext('2d');
+    let W, H, time = 0, characterY;
+    const realms = ["Golden Core Peak", "Nascent Soul Early", "Nascent Soul Middle", "Nascent Soul Peak", "Soul Formation Early", "Soul Formation Middle", "Soul Formation Peak", "Tribulation Transcendence Early", "Tribulation Transcendence Middle", "Tribulation Transcendence Peak"];
+    const pills = [
+        {name: 'Spirit Gathering Pill', cost: 1000, gain: 500},
+        {name: 'Foundation Building Pill', cost: 5000, gain: 3000},
+        {name: 'Purple Gold Pill', cost: 20000, gain: 15000},
+        {name: 'Immortal Spirit Fruit', cost: 3000, gain: 1000, buff: true}
+    ];
+    let state = { 
+        version: 2,
+        money: 15000, 
+        cultivation: 0,
+        nextReq: 20000,
+        realmIndex: 0,
+        allianceJoined: false,
+        allianceBonus: 1,
+        disciples: [],
+        lastTime: Date.now(),
+        particles: [],
+        clouds: [], 
+        bamboo: [], 
+        birds: [], 
+        waterfall: [] 
+    };
+
+    // Firebase Config (替换你的)
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let provider, signer, userAddress;
+    const USDC_ADDRESS = '0x3c499c542cEF5E3811e1192ce70d8cc03d5c3359';
+    const YOUR_WALLET = '0xC00758BCd7e916b448581Adf98B1c998Bf16a4aa';
+    const PROJECT_ID = 'YOUR_WALLET_CONNECT_PROJECT_ID';
+
+    const USDC_ABI = [
+      "function approve(address spender, uint256 amount) public returns (bool)",
+      "function allowance(address owner, address spender) public view returns (uint256)",
+      "function transfer(address to, uint256 amount) public returns (bool)",
+      "function decimals() public view returns (uint8)"
+    ];
+
+    const packs = [
+        {stones: 10000, usdc: 1},
+        {stones: 50000, usdc: 4},
+        {stones: 200000, usdc: 15}
+    ];
+
+    function saveState() {
+        if (userAddress) {
+            db.ref(`saves/${userAddress}`).set(state);
+        }
+        localStorage.setItem(`immortalTaoism_${userAddress ? userAddress.slice(0,10) : 'default'}`, JSON.stringify(state));
+    }
+
+    function loadState() {
+        let loaded = false;
+        if (userAddress) {
+            db.ref(`saves/${userAddress}`).once('value').then(snapshot => {
+                if (snapshot.exists()) {
+                    Object.assign(state, snapshot.val());
+                    loaded = true;
+                    updateUI();
+                    renderDisciples();
+                }
+            }).catch(() => {});
+        }
+        const key = `immortalTaoism_${userAddress ? userAddress.slice(0,10) : 'default'}`;
+        const saved = localStorage.getItem(key);
+        if (saved) {
+            Object.assign(state, JSON.parse(saved));
+            loaded = true;
+        }
+        return loaded;
+    }
+
+    function calculateOfflineRewards() {
+        const now = Date.now();
+        const diffSeconds = (now - state.lastTime) / 1000;
+        const passivePerSecond = (3 + state.realmIndex * 2) / 2 * state.allianceBonus;
+        const offlineCult = Math.floor(diffSeconds * passivePerSecond);
+        if (offlineCult > 0) {
+            state.cultivation += offlineCult;
+            addLog(`<span style='color:var(--gold)'>Offline Rewards: Cultivation +${offlineCult.toLocaleString()}.</span>`);
+            document.getElementById('offline').innerText = `Offline Rewards Claimed (+${offlineCult.toLocaleString()})`;
+            setTimeout(() => { document.getElementById('offline').innerText = 'Offline Rewards Claimed'; }, 5000);
+        }
+        state.lastTime = now;
+    }
+
+    function initCanvasSize() {
+        W = canvas.width = canvas.parentElement.offsetWidth || window.innerWidth;
+        H = canvas.height = canvas.parentElement.offsetHeight || window.innerHeight;
+        characterY = H * 0.65;
+        if (W <= 0 || H <= 0) {
+            W = window.innerWidth;
+            H = window.innerHeight;
+            canvas.width = W;
+            canvas.height = H;
+        }
+    }
+
+    function init() {
+        initCanvasSize();
+        state.particles = [];
+        
+        const loaded = loadState();
+        if (!loaded) {
+            state.money = 15000;
+            state.cultivation = 0;
+            state.realmIndex = 0;
+            state.nextReq = 20000;
+            state.allianceJoined = false;
+            state.allianceBonus = 1;
+            state.disciples = [];
+        }
+        calculateOfflineRewards();
+        saveState();
+        
+        state.clouds = Array.from({length: Math.min(12, W/100)}, () => ({
+            x: Math.random() * W, y: H * (0.05 + Math.random() * 0.15),
+            w: Math.max(60, W*0.1 + Math.random() * W*0.15), h: 20 + Math.random() * 40,
+            v: 0.1 + Math.random() * 0.3, alpha: 0.2 + Math.random() * 0.4
+        }));
+
+        const bambooCount = Math.min(6, Math.floor(W/80));
+        state.bamboo = Array.from({length: bambooCount}, (z, i) => ({
+            x: W * 0.02 + i * (W * 0.03), y: H * 0.25, h: H * 0.6 + i * 10,
+            sway: Math.random() * Math.PI, branch: []
+        }));
+        state.bamboo.forEach(b => {
+            for(let i=0; i<6; i++) {
+                b.branch.push({
+                    x: Math.random()*20 - 10, y: i*45 + Math.random()*15,
+                    l: 20 + Math.random()*15, angle: Math.random()*Math.PI/2 - Math.PI/4
+                });
+            }
+        });
+
+        const birdCount = Math.min(5, Math.floor(W/200));
+        state.birds = Array.from({length: birdCount}, () => ({
+            x: -50, y: H * 0.08 + Math.random() * 80, v: 0.4 + Math.random(), wing: 0
+        }));
+
+        const wfCount = Math.min(150, Math.floor(W*0.5));
+        state.waterfall = Array.from({length: wfCount}, () => ({
+            x: W * 0.75 + Math.random() * (W*0.08), y: H * 0.35 + Math.random() * 60, v: 2 + Math.random()*3
+        }));
+
+        updateUI();
+        renderDisciples();
+    }
+
+    function drawParticles() {
+        const cx = W / 2;
+        const cy = characterY;
+        state.particles.forEach(p => {
+            ctx.save();
+            ctx.globalAlpha = p.alpha;
+            ctx.fillStyle = p.color;
+            ctx.shadowBlur = Math.min(15, W/50);
+            ctx.shadowColor = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        });
+    }
+
+    function updateParticles() {
+        const cx = W / 2;
+        const cy = characterY;
+        state.particles = state.particles.filter(p => {
+            const dx = cx - p.x;
+            const dy = cy - p.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 10 || state.particles.length > 300) {
+                return false;
+            }
+            p.vx = (dx / dist) * p.speed;
+            p.vy = (dy / dist) * p.speed;
+            p.x += p.vx;
+            p.y += p.vy;
+            p.alpha -= 0.015;
+            p.life--;
+            p.size += 0.1;
+            return p.life > 0 && p.alpha > 0;
+        });
+    }
+
+    function addParticles(count = 10) {
+        const cx = W / 2;
+        const cy = characterY;
+        const actualCount = Math.min(count, 50);
+        for (let i = 0; i < actualCount; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = Math.min(200, W*0.3) + Math.random() * 150;
+            state.particles.push({
+                x: cx + Math.cos(angle) * dist,
+                y: cy + Math.sin(angle) * dist,
+                vx: 0,
+                vy: 0,
+                alpha: 0.8 + Math.random() * 0.2,
+                life: 80 + Math.random() * 40,
+                size: 1 + Math.random() * 2,
+                speed: 1.5 + Math.random() * 1,
+                color: `hsl(${120 + state.realmIndex * 15 + Math.random() * 60}, 70%, 60%)`
+            });
+        }
+    }
+
+    function drawPeakCharacter(x, y, s, realm) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(s, s);
+
+        const bh = Math.sin(time) * 3 + Math.sin(time * 0.7) * 1;
+
+        // Core character - drawn first
+        // Flowing Ribbon
+        ctx.strokeStyle = `rgba(143, 184, 179, ${0.3 + realm*0.05})`;
+        ctx.lineWidth = 1.5 + realm*0.2;
+        ctx.beginPath();
+        ctx.moveTo(-35, -110 + bh);
+        ctx.bezierCurveTo(-150 - bh*5, -50, -100, 80, -160, 120 + Math.sin(time)*10);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(35, -110 + bh);
+        ctx.bezierCurveTo(150 + bh*5, -50, 100, 80, 160, 120 - Math.sin(time)*10);
+        ctx.stroke();
+
+        // Robe Body
+        const robeGradient = ctx.createLinearGradient(0, -145, 0, 45);
+        robeGradient.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+        robeGradient.addColorStop(1, 'rgba(240, 240, 240, 0.85)');
+        ctx.fillStyle = robeGradient;
+        ctx.strokeStyle = varColor('--ink');
+        ctx.lineWidth = 1.8 + realm*0.3;
+        ctx.beginPath();
+        ctx.moveTo(0, -145);
+        ctx.bezierCurveTo(-115, -135, -180, -20, -155, 45);
+        ctx.lineTo(155, 45);
+        ctx.bezierCurveTo(180, -20, 115, -135, 0, -145);
+        ctx.fill(); ctx.stroke();
+
+        // Sleeve Folds Shadow
+        ctx.strokeStyle = varColor('--shadow');
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(-90, -10); ctx.quadraticCurveTo(-110, 20, -140, 40); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(90, -10); ctx.quadraticCurveTo(110, 20, 140, 40); ctx.stroke();
+
+        // Cyan Collar
+        ctx.fillStyle = varColor('--cyan');
+        ctx.beginPath();
+        ctx.moveTo(-22, -135); ctx.lineTo(0, -80); ctx.lineTo(22, -135);
+        ctx.lineTo(0, -145); ctx.closePath();
+        ctx.fill(); 
+        ctx.strokeStyle = "rgba(0,0,0,0.5)"; ctx.lineWidth=1.2; ctx.stroke();
+        ctx.strokeStyle = "rgba(255,255,255,0.5)";
+        ctx.beginPath(); ctx.moveTo(-18, -132); ctx.lineTo(0, -85); ctx.lineTo(18, -132); ctx.stroke();
+
+        // Hair Strands
+        ctx.strokeStyle = varColor('--ink');
+        ctx.lineWidth = 0.6;
+        for(let i=0; i<18 + realm*2; i++) {
+            const offset = i * 1.3;
+            ctx.beginPath();
+            ctx.moveTo(-20 + offset/2, -148);
+            ctx.bezierCurveTo(-50 - offset, -80, -95, 20, -85, 80 + bh*2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(20 - offset/2, -148);
+            ctx.bezierCurveTo(50 + offset, -80, 95, 20, 85, 80 + bh*2);
+            ctx.stroke();
+        }
+
+        // Facial Features and Skin
+        ctx.fillStyle = varColor('--skin');
+        ctx.beginPath(); ctx.arc(0, -160, 26, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = varColor('--ink'); ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.lineWidth = 0.5;
+        ctx.strokeStyle = "rgba(0,0,0,0.7)";
+        ctx.beginPath(); ctx.moveTo(-10, -159); ctx.lineTo(-4, -159); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(4, -159); ctx.lineTo(10, -159); ctx.stroke();
+        ctx.strokeStyle = varColor('--vermilion');
+        ctx.beginPath(); ctx.moveTo(-3, -148); ctx.lineTo(3, -148); ctx.stroke();
+
+        // Divine Sense Phantom
+        ctx.save();
+        ctx.translate(0, -220 + bh*3);
+        ctx.strokeStyle = `rgba(181, 148, 90, ${0.15 + realm*0.05})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(0, 0, 40 + realm*5, 0, Math.PI*2); ctx.stroke();
+        ctx.globalAlpha = 0.4 + realm*0.05;
+        ctx.fillStyle = varColor('--gold');
+        ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(-12, 12); ctx.lineTo(12, 12); ctx.lineTo(16, 28); ctx.lineTo(-16, 28); ctx.closePath(); ctx.fill();
+        ctx.restore();
+
+        // Hair Bun and Golden Hairpin
+        ctx.fillStyle = varColor('--ink');
+        ctx.fillRect(-8, -208, 16, 24);
+        ctx.fillStyle = varColor('--gold');
+        ctx.fillRect(-45, -200, 90, 3);
+
+        // Super Saiyan energy aura - drawn AFTER character with lighter blend (glow on top)
+        if (realm >= 1) {
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha = 0.35 + Math.sin(time * 3) * 0.1;
+            const intensity = realm * 4;
+            const baseRadius = 180 + realm * 20;
+            const pulse = Math.sin(time * 4) * 12;
+            const hue = 190 + realm * 12;
+            const auraGradient = ctx.createRadialGradient(0, -50, 0, 0, -50, baseRadius + pulse);
+            auraGradient.addColorStop(0, `hsla(${hue}, 100%, 70%, 0.6)`);
+            auraGradient.addColorStop(0.5, `hsla(${hue}, 100%, 60%, 0.3)`);
+            auraGradient.addColorStop(1, `hsla(${hue}, 100%, 50%, 0)`);
+            ctx.fillStyle = auraGradient;
+            ctx.shadowBlur = 30 + intensity;
+            ctx.shadowColor = `hsla(${hue}, 100%, 60%, 0.5)`;
+            ctx.beginPath();
+            ctx.ellipse(0, -50, (baseRadius + pulse) * 0.85, (baseRadius + pulse) * 1.4, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Flare lines
+            ctx.globalAlpha = 0.5;
+            ctx.strokeStyle = `hsla(${hue}, 100%, 70%, 0.5)`;
+            ctx.lineWidth = 2 + realm * 0.6;
+            for (let i = 0; i < 8 + realm * 2; i++) {
+                const angle = (i / (8 + realm * 2)) * Math.PI * 2 + time * 0.4;
+                const flareLength = 140 + realm * 25 + Math.sin(time * 5 + i) * 15;
+                ctx.beginPath();
+                ctx.moveTo(Math.cos(angle) * 35, -90 + Math.sin(angle) * 35);
+                ctx.lineTo(Math.cos(angle) * (35 + flareLength), -90 - flareLength + Math.sin(angle) * flareLength);
+                ctx.stroke();
+            }
+
+            // Sparks
+            ctx.globalAlpha = 0.7;
+            for (let i = 0; i < 20 + realm * 6; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = baseRadius * 0.8 * Math.random();
+                const px = Math.cos(angle) * dist;
+                const py = -50 + Math.sin(angle) * dist;
+                const size = 1.5 + Math.random() * (2 + realm * 0.5);
+                const sparkAlpha = 0.5 + Math.sin(time * 6 + i) * 0.3;
+                ctx.beginPath();
+                ctx.arc(px, py, size, 0, Math.PI * 2);
+                ctx.fillStyle = `hsla(${hue}, 100%, 80%, ${sparkAlpha})`;
+                ctx.fill();
+            }
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.globalAlpha = 1;
+        }
+
+        ctx.restore();
+    }
+
+    function drawScenery() {
+        ctx.fillStyle = "rgba(0,0,0,0.015)";
+        ctx.beginPath();
+        ctx.moveTo(0, H*0.8);
+        ctx.quadraticCurveTo(W*0.25, H*0.4, W*0.5, H*0.75);
+        ctx.quadraticCurveTo(W*0.75, H*0.35, W, H*0.85);
+        ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.fill();
+        
+        ctx.fillStyle = "rgba(0,0,0,0.03)";
+        ctx.beginPath();
+        ctx.moveTo(0, H*0.9);
+        ctx.quadraticCurveTo(W*0.3, H*0.5, W*0.6, H*0.8);
+        ctx.quadraticCurveTo(W*0.8, H*0.4, W, H*0.95);
+        ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.fill();
+
+        ctx.fillStyle = "rgba(0,0,0,0.05)";
+        ctx.beginPath();
+        ctx.moveTo(0, H*1.05);
+        ctx.quadraticCurveTo(W*0.4, H*0.6, W*0.7, H*1.0);
+        ctx.quadraticCurveTo(W*0.9, H*0.7, W, H*1.05);
+        ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.fill();
+
+        state.clouds.forEach(c => {
+            c.x += c.v;
+            if(c.x > W + c.w/2) c.x = -c.w/2;
+            ctx.save();
+            ctx.globalAlpha = c.alpha;
+            ctx.fillStyle = varColor('--cloud-blue');
+            ctx.beginPath();
+            ctx.ellipse(c.x, c.y, c.w, c.h, 0, 0, Math.PI*2);
+            ctx.ellipse(c.x + c.w*0.3, c.y + c.h*0.5, c.w*0.7, c.h*0.8, 0, 0, Math.PI*2);
+            ctx.ellipse(c.x - c.w*0.2, c.y + c.h*0.4, c.w*0.6, c.h*0.7, 0, 0, Math.PI*2);
+            ctx.fill();
+            ctx.restore();
+        });
+
+        state.bamboo.forEach(b => {
+            ctx.save();
+            ctx.translate(b.x + Math.sin(b.sway + time*0.5)*5, b.y);
+            ctx.rotate(Math.sin(b.sway + time*0.3)*0.01);
+
+            ctx.strokeStyle = varColor('--bamboo-green');
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, b.h); ctx.stroke();
+
+            ctx.fillStyle = varColor('--bamboo-green');
+            b.branch.forEach(br => {
+                ctx.save();
+                ctx.translate(0, br.y);
+                ctx.rotate(br.angle + Math.sin(time*0.7 + br.angle)*0.05);
+                ctx.beginPath();
+                ctx.moveTo(0,0);
+                ctx.quadraticCurveTo(br.l*0.3, -br.l*0.5, br.l, 0);
+                ctx.quadraticCurveTo(br.l*0.3, br.l*0.5, 0, 0);
+                ctx.fill();
+                ctx.restore();
+            });
+            ctx.restore();
+        });
+
+        ctx.fillStyle = "rgba(255,255,255,0.6)";
+        state.waterfall.forEach(p => {
+            p.y += p.v;
+            if(p.y > H*0.9) p.y = H*0.4;
+            ctx.fillRect(p.x, p.y, 2, 8);
+        });
+
+        ctx.strokeStyle = "rgba(0,0,0,0.3)";
+        state.birds.forEach(b => {
+            b.x += b.v;
+            if(b.x > W + 50) b.x = -50;
+            b.wing = Math.sin(time * 5) * 0.1;
+            ctx.beginPath();
+            ctx.moveTo(b.x, b.y);
+            ctx.quadraticCurveTo(b.x+10, b.y-10 + b.wing*20, b.x+20, b.y);
+            ctx.stroke();
+        });
+    }
+
+    function render() {
+        ctx.clearRect(0, 0, W, H);
+        time += 0.02;
+
+        drawScenery();
+        updateParticles();
+        drawParticles();
+        drawPeakCharacter(W/2, characterY, 1.05, state.realmIndex);
+        requestAnimationFrame(render);
+    }
+
+    function varColor(name) { return getComputedStyle(document.documentElement).getPropertyValue(name); }
+
+    function addLog(msg) {
+        const box = document.getElementById('logs');
+        const d = document.createElement('div');
+        d.style.marginBottom = "8px";
+        d.innerHTML = `<span style="color:#aaa; font-size:0.8rem;">[${new Date().toLocaleTimeString()}]</span> ${msg}`;
+        box.prepend(d);
+        box.scrollTop = 0;
+    }
+
+    function updateUI() {
+        document.getElementById('money').innerText = state.money.toLocaleString();
+        document.getElementById('cult').innerText = state.cultivation.toLocaleString();
+        document.getElementById('req').innerText = state.nextReq.toLocaleString();
+        document.getElementById('realm').innerText = `Realm: ${realms[state.realmIndex]}`;
+        const progress = Math.min(100, (state.cultivation / state.nextReq) * 100);
+        document.getElementById('progress').style.width = progress + '%';
+
+        const btn = document.getElementById('breakthroughBtn');
+        if (state.realmIndex >= realms.length - 1) {
+            btn.innerText = "Reached Peak";
+            btn.disabled = true;
+        } else {
+            btn.innerText = `Breakthrough to ${realms[state.realmIndex + 1]} (Requires ${state.nextReq.toLocaleString()} Cultivation)`;
+            btn.disabled = state.cultivation < state.nextReq;
+        }
+
+        pills.forEach((p, i) => {
+            document.getElementById('pillBtn' + i).disabled = state.money < p.cost;
+        });
+
+        const allianceBtn = document.getElementById('allianceBtn');
+        const allianceStatus = document.getElementById('allianceStatus');
+        if (state.allianceJoined) {
+            allianceBtn.disabled = true;
+            allianceBtn.innerText = "Already Joined Alliance";
+            allianceStatus.innerText = "Alliance Bonus: Passive Rewards x1.2";
+        } else {
+            allianceBtn.disabled = state.money < 5000;
+            allianceStatus.innerText = "Not Joined Alliance";
+        }
+
+        const recruitBtn = document.getElementById('recruitBtn');
+        recruitBtn.disabled = state.money < 2000 || state.disciples.length >= 3;
+
+        saveState();
+    }
+
+    function renderDisciples() {
+        const container = document.getElementById('disciples');
+        container.innerHTML = '';
+        state.disciples.forEach((d, i) => {
+            const div = document.createElement('div');
+            div.className = 'disciple-item';
+            div.innerHTML = `
+                <span>${d.name} (Level: ${d.level})</span>
+                <div class="disciple-status">Contribution: ${d.contribution.toLocaleString()} Cultivation/hour</div>
+                <button onclick="upgradeDisciple(${i})" style="margin-top:5px;" ${state.money < d.upgradeCost ? 'disabled' : ''}>Upgrade (${d.upgradeCost.toLocaleString()} Spirit Stones)</button>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    function addCultivation(amount) {
+        const effectiveAmount = Math.floor(amount * state.allianceBonus);
+        state.cultivation += effectiveAmount;
+        const particleCount = Math.max(5, Math.floor(effectiveAmount / 10));
+        addParticles(particleCount);
+        updateUI();
+        if (Math.random() < 0.3) {
+            addLog(`<span style='color:#2d6a4f'>Absorbed spiritual energy, Cultivation +${effectiveAmount.toLocaleString()}.</span>`);
+        }
+    }
+
+    setInterval(() => {
+        const passiveGain = 3 + state.realmIndex * 2;
+        addCultivation(passiveGain);
+        state.disciples.forEach(d => {
+            const contrib = Math.floor(d.contribution * (1 + state.realmIndex / 10));
+            addCultivation(contrib);
+            if (Math.random() < 0.1) {
+                addLog(`<span style='color:#2d6a4f'>Disciple ${d.name} contributed Cultivation +${contrib.toLocaleString()}.</span>`);
+            }
+        });
+    }, 2000);
+
+    function cultivate() {
+        const moneyGain = 100 + Math.floor(Math.random() * 50) + state.realmIndex * 20;
+        const cultGain = 50 + Math.floor(Math.random() * 50) + state.realmIndex * 10;
+        state.money += moneyGain;
+        addCultivation(cultGain);
+        addLog(`<span style='color:#2d6a4f'>Closed door cultivation for one day, Spirit Stones +${moneyGain.toLocaleString()}, Cultivation +${cultGain.toLocaleString()}.</span>`);
+    }
+
+    function explore() {
+        const rand = Math.random();
+        if (rand < 0.25) {
+            const loss = 200 + Math.floor(Math.random() * 300);
+            state.money = Math.max(0, state.money - loss);
+            addLog(`<span style='color:var(--vermilion)'>Encountered demonic beast, Spirit Stones -${loss.toLocaleString()}.</span>`);
+        } else if (rand < 0.7) {
+            const moneyGain = 300 + Math.floor(Math.random() * 400) + state.realmIndex * 100;
+            const cultGain = 80 + Math.floor(Math.random() * 100) + state.realmIndex * 20;
+            state.money += moneyGain;
+            addCultivation(cultGain);
+            addLog(`<span style='color:#2d6a4f'>Discovered spiritual herb, Spirit Stones +${moneyGain.toLocaleString()}, Cultivation +${cultGain.toLocaleString()}.</span>`);
+        } else {
+            addLog("<span style='color:#888'>Exploration yielded nothing, returned to the cave.</span>");
+        }
+        updateUI();
+    }
+
+    function buyPill(index) {
+        const pill = pills[index];
+        if (state.money >= pill.cost) {
+            state.money -= pill.cost;
+            addCultivation(pill.gain);
+            if (pill.buff) {
+                const buff = Math.random() < 0.5 ? 'money' : 'cult';
+                if (buff === 'money') {
+                    const extra = Math.floor(Math.random() * 1000) + 500;
+                    state.money += extra;
+                    addLog(`<span style='color:var(--purple)'>Immortal Spirit Fruit buff: Extra Spirit Stones +${extra.toLocaleString()}.</span>`);
+                } else {
+                    const extra = Math.floor(Math.random() * 500) + 300;
+                    addCultivation(extra);
+                    addLog(`<span style='color:var(--purple)'>Immortal Spirit Fruit buff: Extra Cultivation +${extra.toLocaleString()}.</span>`);
+                }
+            }
+            addLog(`<span style='color:var(--purple)'>Consumed ${pill.name}, Cultivation +${pill.gain.toLocaleString()}.</span>`);
+            updateUI();
+        }
+    }
+
+    function joinAlliance() {
+        if (state.money >= 5000 && !state.allianceJoined) {
+            state.money -= 5000;
+            state.allianceJoined = true;
+            state.allianceBonus = 1.2;
+            addLog(`<span style='color:var(--gold)'>Joined Immortal Alliance, passive rewards boosted by 20%!</span>`);
+            updateUI();
+        }
+    }
+
+    function recruitDisciple() {
+        if (state.money >= 2000 && state.disciples.length < 3) {
+            state.money -= 2000;
+            const names = ['Li Qing', 'Zhang Xuan', 'Wang Ling', 'Zhao Yun', 'Sun Yi'];
+            const name = names[Math.floor(Math.random() * names.length)];
+            state.disciples.push({name, level: 1, contribution: 5, upgradeCost: 1000});
+            addLog(`<span style='color:#b5945a'>Recruited disciple ${name}, daily cultivation contribution.</span>`);
+            updateUI();
+            renderDisciples();
+        }
+    }
+
+    function upgradeDisciple(index) {
+        const d = state.disciples[index];
+        if (state.money >= d.upgradeCost) {
+            state.money -= d.upgradeCost;
+            d.level++;
+            d.contribution += 5 + Math.floor(Math.random() * 5);
+            d.upgradeCost += 1000 * d.level;
+            addLog(`<span style='color:#b5945a'>Disciple ${d.name} upgraded to level ${d.level}, contribution increased.</span>`);
+            updateUI();
+            renderDisciples();
+        }
+    }
+
+    function breakthrough() {
+        if (state.cultivation >= state.nextReq && state.realmIndex < realms.length - 1) {
+            addParticles(100);
+            state.cultivation -= state.nextReq;
+            state.realmIndex++;
+            state.nextReq = Math.floor(state.nextReq * 1.8) + 10000;
+            updateUI();
+            addLog(`<span style='color:var(--gold)'>Heavenly thunder tempers the body, merit bestowed! Breakthrough to ${realms[state.realmIndex]}!</span>`);
+        }
+    }
+
+    setInterval(() => {
+        const rand = Math.random();
+        if (rand > 0.75) {
+            const loss = 200 + Math.floor(Math.random() * 300);
+            state.money = Math.max(0, state.money - loss);
+            addLog(`<span style='color:var(--vermilion)'>Heart demons invade, Spirit Stones -${loss.toLocaleString()}.</span>`);
+        } else if (rand > 0.4) {
+            const moneyGain = 150 + Math.floor(Math.random() * 250);
+            const cultGain = 30 + state.realmIndex * 10;
+            state.money += moneyGain;
+            addCultivation(cultGain);
+            addLog(`<span style='color:#2d6a4f'>Fortuitous encounter, Spirit Stones +${moneyGain.toLocaleString()}, Cultivation +${cultGain.toLocaleString()}.</span>`);
+        } else {
+            addCultivation(50);
+        }
+        updateUI();
+    }, 10000);
+
+    async function connectWithMetaMask() {
+        if (typeof window.ethereum !== 'undefined') {
+            provider = new ethers.providers.Web3Provider(window.ethereum);
+            await provider.send("eth_requestAccounts", []);
+            await switchToPolygon();
+            signer = provider.getSigner();
+            userAddress = await signer.getAddress();
+            handleConnectionSuccess();
+        } else {
+            alert('MetaMask not detected. Use HyperPlay wallet overlay or try WalletConnect.');
+        }
+    }
+
+    async function connectWithWalletConnect() {
+        try {
+            const wcProvider = await EthereumProvider.init({
+                projectId: PROJECT_ID,
+                chains: [137],
+                showQrModal: true
+            });
+            await wcProvider.enable();
+            provider = new ethers.providers.Web3Provider(wcProvider);
+            signer = provider.getSigner();
+            userAddress = await signer.getAddress();
+            handleConnectionSuccess();
+        } catch (e) {
+            alert('WalletConnect failed: ' + e.message);
+        }
+    }
+
+    async function switchToPolygon() {
+        try {
+            await window.ethereum.request({
+                method: "wallet_switchEthereumChain",
+                params: [{ chainId: "0x89" }]
+            });
+        } catch (switchError) {
+            if (switchError.code === 4902) {
+                await window.ethereum.request({
+                    method: "wallet_addEthereumChain",
+                    params: [{
+                        chainId: "0x89",
+                        chainName: "Polygon",
+                        rpcUrls: ["https://polygon-rpc.com"],
+                        nativeCurrency: { name: "MATIC", symbol: "MATIC", decimals: 18 },
+                        blockExplorerUrls: ["https://polygonscan.com"]
+                    }]
+                });
+            }
+        }
+    }
+
+    function handleConnectionSuccess() {
+        document.getElementById('walletInfo').innerHTML = `Connected: ${userAddress.slice(0,6)}...${userAddress.slice(-4)}`;
+        document.getElementById('metamaskBtn').style.display = 'none';
+        document.getElementById('walletconnectBtn').style.display = 'none';
+        document.querySelectorAll('.shop-btn').forEach(b => b.disabled = false);
+        loadState();
+        updateUI();
+    }
+
+    async function buyPack(id, usdcAmount) {
+        if (!signer) return alert('Connect wallet first!');
+        try {
+            const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
+            const amount = ethers.utils.parseUnits(usdcAmount.toString(), 6);
+
+            let allowance = await usdcContract.allowance(userAddress, YOUR_WALLET);
+            if (allowance.lt(amount)) {
+                document.getElementById(`pack${id}`).innerText = 'Approving...';
+                const approveTx = await usdcContract.approve(YOUR_WALLET, ethers.constants.MaxUint256);
+                await approveTx.wait();
+            }
+
+            document.getElementById(`pack${id}`).innerText = 'Confirming...';
+            const tx = await usdcContract.transfer(YOUR_WALLET, amount);
+            await tx.wait();
+
+            state.money += packs[id].stones;
+            saveState();
+            updateUI();
+            addLog(`<span style='color:var(--gold)'>Crypto Pack ${id+1} purchased! +${packs[id].stones.toLocaleString()} Stones.</span>`);
+            document.getElementById(`pack${id}`).innerText = `Buy (${usdcAmount} USDC)`;
+        } catch (e) {
+            alert('Tx failed: ' + e.message);
+            document.getElementById(`pack${id}`).innerText = `Buy (${usdcAmount} USDC)`;
+        }
+    }
+
+    window.addEventListener('resize', () => {
+        initCanvasSize();
+    });
+
+    window.onload = () => {
+        init();
+        render();
+    };
+
+    addLog("Burn incense and meditate, begin cultivation. Absorbing spiritual energy in idle mode...");
+</script>
 </body>
 </html>
